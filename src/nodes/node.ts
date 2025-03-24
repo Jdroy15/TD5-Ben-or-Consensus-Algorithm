@@ -54,23 +54,56 @@ export async function node(
             v = 0;
           } else if (countValues1 > (N / 2)) {
             v = 1;
+          } else {
+            v = Math.random() > 0.5 ? 0 : 1;
           }
-          sendAllMessage("P",k, v, N);
+          sendAllMessage("P", k, v, N);
         }
       } 
       else if (R == "P") {
         let roundPProcessedMessages = processMessage(roundPMessages, k, x);
         if (roundPProcessedMessages.length >= N - F) {
           const { countValues0, countValues1 } = countValues(roundPProcessedMessages);
-          if (countValues0 >= F + 1) {
-            setNodeState(0, true);
-          } else if (countValues1 >= F + 1) {
-            setNodeState(1, true);
-          } else {
-            const totalValues = countValues0 + countValues1;
-            nodeState.x = totalValues > 0 ? (countValues0 > countValues1 ? 0 : 1) : Math.random() > 0.5 ? 0 : 1;
+          
+          // Check if we have enough messages to reach consensus
+          if (roundPProcessedMessages.length < N - F) {
             nodeState.k = k + 1;
-            sendAllMessage("R", k+1, nodeState.x, N);
+            if (nodeState.x === null) {
+              nodeState.x = Math.random() > 0.5 ? 0 : 1;
+            }
+            sendAllMessage("R", k + 1, nodeState.x, N);
+            return;
+          }
+          
+          // Check if we have enough messages of the same value to reach consensus
+          // Only reach consensus if we have more than F+1 messages of the same value
+          // and we're within fault tolerance threshold
+          if (F > N/3) {
+            // If we exceed fault tolerance, never reach consensus
+            const totalValues = countValues0 + countValues1;
+            if (totalValues > 0) {
+              nodeState.x = countValues0 > countValues1 ? 0 : 1;
+            } else {
+              nodeState.x = Math.random() > 0.5 ? 0 : 1;
+            }
+            nodeState.k = k + 1;
+            sendAllMessage("R", k + 1, nodeState.x, N);
+          } else {
+            // Within fault tolerance, try to reach consensus
+            if (countValues0 >= F + 1) {
+              setNodeState(0, true);
+            } else if (countValues1 >= F + 1) {
+              setNodeState(1, true);
+            } else {
+              const totalValues = countValues0 + countValues1;
+              if (totalValues > 0) {
+                nodeState.x = countValues0 > countValues1 ? 0 : 1;
+              } else {
+                nodeState.x = Math.random() > 0.5 ? 0 : 1;
+              }
+              nodeState.k = k + 1;
+              sendAllMessage("R", k + 1, nodeState.x, N);
+            }
           }
         }
       }
